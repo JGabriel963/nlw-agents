@@ -2,7 +2,7 @@ import type { FastifyPluginCallbackZod } from "fastify-type-provider-zod";
 import { db } from "../../db/connection.ts";
 import { schema } from "../../db/schema/index.ts";
 import z from "zod/v4";
-import { generateEmbeddings } from "../../services/gemini.ts";
+import { generateAnswer, generateEmbeddings } from "../../services/gemini.ts";
 import { and, eq, sql } from "drizzle-orm";
 import { tr } from "zod/v4/locales";
 
@@ -45,23 +45,31 @@ export const createQuestionRoute: FastifyPluginCallbackZod = (app) => {
         )
         .limit(3);
 
-      return chunks;
+      let answer: string | null = null;
 
-      // const result = await db
-      //   .insert(schema.questions)
-      //   .values({
-      //     question,
-      //     roomId,
-      //   })
-      //   .returning();
+      if (chunks.length > 0) {
+        const transcriptions = chunks.map((chunk) => chunk.transcription);
+        answer = await generateAnswer(question, transcriptions);
+      }
 
-      // const insertedQuestion = result[0];
+      const result = await db
+        .insert(schema.questions)
+        .values({
+          question,
+          roomId,
+          answer,
+        })
+        .returning();
 
-      // if (!insertedQuestion) {
-      //   throw new Error("Failed to create new room.");
-      // }
+      const insertedQuestion = result[0];
 
-      // return reply.status(201).send({ questionId: insertedQuestion.id });
+      if (!insertedQuestion) {
+        throw new Error("Failed to create new room.");
+      }
+
+      return reply
+        .status(201)
+        .send({ questionId: insertedQuestion.id, answer });
     }
   );
 };

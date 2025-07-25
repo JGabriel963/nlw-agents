@@ -45,3 +45,43 @@ export async function generateEmbeddings(text: string) {
 
   return response.embeddings[0].values;
 }
+
+export async function generateAnswer(
+  question: string,
+  transcriptions: string[]
+) {
+  const context = transcriptions.join("\n\n");
+
+  const prompt = `
+    Como base no texto abaixo, responda a pergunta de forma clara e objetiva em português do Brasil.
+
+    CONTEXTO:
+    ${context}
+
+    PERGUNTA:
+    ${question}
+
+    INSTRUÇÕES:
+    - Use apenas informações do contexto para responder a pergunta;
+    - Se a resposta não estiver no contexto, responda "Não possui informações suficiente para responder";
+    - Seja claro e objetivo na resposta;
+    - Mantenha um tom educativo e profissional;
+    - Cite trechos relevantes do contexto se necessário.
+    - See for citar o contexto, use o termo "conteúdo da aula".
+  `.trim();
+
+  const response = await gemini.models.generateContent({
+    model,
+    contents: [
+      {
+        text: prompt,
+      },
+    ],
+  });
+
+  if (!response.text) {
+    throw new Error("Failed to generate answer");
+  }
+
+  return response.text;
+}
